@@ -5,4 +5,5 @@ authors = ["Benjamin Herman <benjamin@metanomial.com>"]
 edition = "2021"
 
 [dependencies]
+clap = { version = "3.1.18", features = ["derive"] }
 rocket = "0.5.0-rc.2"
