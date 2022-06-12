@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::Parser;
 use rocket::response::content::RawHtml;
 use std::path::PathBuf;
 
@@ -8,53 +8,28 @@ mod static_files;
 #[derive(Parser)]
 #[clap(version)]
 struct Cli {
-  #[clap(subcommand)]
-  command: Command,
+  /// Path to library
+  #[clap()]
+  path: Option<PathBuf>,
 
   /// Enable verbose output
   #[clap(short, long)]
   verbose: bool,
 }
 
-#[derive(Subcommand)]
-enum Command {
-  Start(Start),
-  Setup(Setup),
-}
-
-/// Load and serve a media library
-#[derive(Args)]
-struct Start {
-  path: Option<PathBuf>,
-}
-
-/// Setup a new media library
-#[derive(Args)]
-struct Setup {
-  path: Option<PathBuf>,
-}
-
-#[rocket::main]
-async fn main() {
+#[rocket::launch]
+async fn launch() -> _ {
   let cli = Cli::parse();
-  match &cli.command {
-    Command::Start(cmd) => start(&cmd.path).await,
-    Command::Setup(cmd) => setup(&cmd.path),
+  let path = match cli.path {
+    Some(path) => path.canonicalize().unwrap(),
+    None => std::env::current_dir().unwrap(),
   };
+  if !path.is_dir() {
+    println!("Path is not a directory");
 }
-
-async fn start(_: &Option<PathBuf>) {
   rocket::build()
     .mount("/", rocket::routes![index])
     .mount("/", static_files::routes())
-    .launch()
-    .await
-    .map_err(|error| println!("{:?}", error))
-    .ok();
-}
-
-fn setup(_: &Option<PathBuf>) {
-  println!("Not implemented.");
 }
 
 #[rocket::get("/")]
