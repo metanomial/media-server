@@ -1,5 +1,42 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --menu-bar: #bfc5c7;
+}
+
 body {
-  margin: auto 0;
-  padding: 1rem;
   font-family: sans-serif;
+}
+
+body>nav {
+  padding: 1.5rem;
+  background-color: var(--menu-bar);
+}
+
+body>nav>menu {
+  list-style: none;
+  display: flex;
+  gap: 2rem;
+}
+
+body>header {
+  margin: 2rem 5vw;
+  display: flex;
+  gap: 2rem;
+}
+
+body>main {
+  margin: 2rem 5vw 4rem;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }

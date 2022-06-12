@@ -650,10 +650,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "maud"
+version = "0.23.0"
+source = "git+https://github.com/metanomial/maud?tag=rocket-0.5-support#9a7243a7e31561cd20287cffcdd53f39cb171cab"
+dependencies = [
+ "maud_macros",
+ "rocket",
+]
+
+[[package]]
+name = "maud_macros"
+version = "0.23.0"
+source = "git+https://github.com/metanomial/maud?tag=rocket-0.5-support#9a7243a7e31561cd20287cffcdd53f39cb171cab"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "media-server"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "maud",
  "rocket",
 ]
 
