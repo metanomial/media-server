@@ -1,5 +1,6 @@
+use crate::library::Library;
 use maud::{html, Markup, DOCTYPE};
-use rocket::Route;
+use rocket::{Route, State};
 
 fn page_title(title: Option<&str>) -> Markup {
   html! {
@@ -76,8 +77,21 @@ fn home() -> Markup {
 }
 
 #[rocket::get("/movies")]
-fn movies() -> Markup {
-  base(Some("Movies"), html! {})
+fn movies(library: &State<Library>) -> Markup {
+  base(
+    Some("Movies"),
+    html! {
+      @for movie in &library.movies {
+        .movie {
+          (movie.title)
+          @match movie.year {
+            Some(y) => " " (y),
+            None => ""
+          }
+        }
+      }
+    },
+  )
 }
 
 pub fn routes() -> Vec<Route> {
