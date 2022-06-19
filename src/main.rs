@@ -5,6 +5,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 mod library;
+mod movie;
 mod pages;
 mod static_files;
 
