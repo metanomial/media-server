@@ -1,4 +1,5 @@
 use crate::{library::dir_or_err, logger::Logger};
+use regex::Regex;
 use std::{
   fmt, io,
   path::{Path, PathBuf},
@@ -44,47 +45,53 @@ impl Movie {
     Ok(Movie { path, metadata })
   }
 
-  /// Calculate URL slug from metadata and/or path
+  /// Calculates URL slug from title and year.
   pub fn slug(&self) -> String {
     todo!()
   }
 
-  /// Calculate display title from metadata or path
+  /// Calculates display title from metadata, falling back to path.
   pub fn title(&self) -> String {
-    todo!()
+    self
+      .metadata
+      .as_ref()
+      .map(|m| m.title.as_ref())
+      .flatten()
+      .map(|t| t.into())
+      .unwrap_or_else(|| self.path_title_year().0)
   }
 
-  /// Calculate release year from metadata or path
-  pub fn year(&self) -> String {
-    todo!()
+  /// Calculates release year from metadata, falling back to path.
+  pub fn year(&self) -> Option<u32> {
+    self
+      .metadata
+      .as_ref()
+      .map(|m| m.year)
+      .flatten()
+      .or_else(|| self.path_title_year().1)
   }
 
-  // /// Extracts the title and year from the basename of a movie directory.
-  // ///
-  // /// Returns a tuple representing `(title, year)`.
-  // ///
-  // /// Returns the basename as `title` and a `None` as `year` if the year
-  // /// is not present or the directory name cannot be parsed.
-  // pub fn parse_basename(path: &PathBuf) -> (String, Option<i32>) {
-  //   use regex::Regex;
-  //   // Movie folder name pattern: "Movie Display Title (YYYY)"
-  //   let basename_regex = Regex::new(r"^(.+)\s+\((\d{4})\)$").unwrap();
-  //   let basename = path.file_name().unwrap().to_string_lossy();
-  //   match basename_regex.captures(&basename) {
-  //     // Folder name is properly formatted as "Title (YYYY)"
-  //     Some(captures) => (
-  //       captures.get(0).unwrap().as_str().to_string(),
-  //       captures.get(1).map(|m| m.as_str().parse().unwrap()),
-  //     ),
-  //     // Folder name cannot be parsed
-  //     None => (String::from(basename), None),
-  //   }
-  // }
+  /// Captures display title and year from directory name.
+  fn path_title_year(&self) -> (String, Option<u32>) {
+    let regex = Regex::new(r"^(.+)\s+\(([1-9]\d{3})\)").unwrap();
+    let basename = self.path.file_name().unwrap().to_string_lossy();
+    match regex.captures(&basename) {
+      Some(c) => (
+        c.get(0).unwrap().as_str().to_string(),
+        c.get(1).unwrap().as_str().parse().ok(),
+      ),
+      None => (basename.to_string(), None),
+    }
+  }
 }
 
 impl fmt::Display for Movie {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{} ({})", self.title(), self.year())
+    let title = self.title();
+    match self.year() {
+      Some(y) => write!(f, "{} ({})", title, y),
+      None => write!(f, "{}", title),
+    }
   }
 }
 
