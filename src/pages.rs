@@ -81,12 +81,10 @@ fn movies(library: &State<Library>) -> Markup {
   base(
     Some("Movies"),
     html! {
-      @for movie in &library.movies {
-        .movie {
-          (movie.title)
-          @match movie.year {
-            Some(y) => " " (y),
-            None => ""
+      @for (_, movie) in &library.movies {
+        figure class="movie" {
+          figcaption {
+            (movie)
           }
         }
       }

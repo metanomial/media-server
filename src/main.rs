@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
+#![feature(io_error_more)]
 
-use crate::library::Library;
 use clap::Parser;
+use library::Library;
+use logger::Logger;
 use std::path::PathBuf;
 
 mod library;
-mod movie;
+mod logger;
 mod pages;
 mod static_files;
 
@@ -16,6 +18,7 @@ struct Cli {
   /// Path to library
   #[clap()]
   path: Option<PathBuf>,
+
   /// Enable verbose output
   #[clap(short, long)]
   verbose: bool,
@@ -24,15 +27,16 @@ struct Cli {
 #[rocket::launch]
 async fn launch() -> _ {
   let cli = Cli::parse();
-  let library = match Library::load(cli.path) {
+  let logger = Logger::new(cli.verbose);
+  let library = match Library::load(cli.path, &logger) {
     Ok(l) => l,
     Err(e) => {
-      println!("{}", e);
+      logger.error(e);
       std::process::exit(1);
     }
   };
-  println!("Loaded {} movies", library.movies.len());
   rocket::build()
+    .manage(logger)
     .manage(library)
     .mount("/", pages::routes())
     .mount("/", static_files::routes())
