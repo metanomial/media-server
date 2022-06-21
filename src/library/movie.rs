@@ -1,26 +1,29 @@
 use crate::{library::dir_or_err, logger::Logger};
 use regex::Regex;
+use serde::Deserialize;
 use std::{
+  error::Error,
   fmt, io,
   path::{Path, PathBuf},
 };
+
+const MOVIE_METADATA_FILE: &str = "movie.nfo";
 
 /// Movie collection
 pub type MovieCollection = std::collections::HashMap<String, Movie>;
 
 /// Movie
-#[derive(Debug)]
 pub struct Movie {
   /// Path to movie directory
   pub path: PathBuf,
 
-  /// Metadata
-  pub metadata: Option<MovieMetadata>,
+  /// Movie NFO metadata
+  pub nfo: MovieNfo,
 }
 
 impl Movie {
-  /// Loads all movies in the given root directory into the given collection.
-  pub fn load_root(path: PathBuf, logger: &Logger) -> io::Result<MovieCollection> {
+  /// Loads a collection of movies in the given root directory.
+  pub fn load_collection(path: PathBuf, logger: &Logger) -> io::Result<MovieCollection> {
     logger.verbose(format!(
       "Loading Movies collection at {}",
       path.to_string_lossy()
@@ -29,10 +32,7 @@ impl Movie {
       .read_dir()?
       .filter_map(Result::ok)
       .filter_map(|entry| Movie::load(entry.path(), logger).ok())
-      .map(|movie| {
-        logger.verbose(format!("Loaded {}", movie));
-        (movie.slug(), movie)
-      })
+      .map(Movie::key_value_pair)
       .collect();
     logger.verbose(format!("Loaded {} movies", collection.len()));
     Ok(collection)
@@ -41,87 +41,139 @@ impl Movie {
   /// Loads a movie from the given path.
   fn load(path: PathBuf, logger: &Logger) -> io::Result<Movie> {
     dir_or_err(&path)?;
-    let metadata = MovieMetadata::load(path.as_path(), logger).ok();
-    Ok(Movie { path, metadata })
+    let nfo = MovieNfo::load(path.as_path()).unwrap_or_default();
+    let movie = Movie { path, nfo };
+    logger.verbose(format!("Loaded movie {}", &movie));
+    Ok(movie)
   }
 
-  /// Calculates URL slug from title and year.
+  /// Creates a key-value pair for collecting into a `MovieCollection`.
+  pub fn key_value_pair(self) -> (String, Movie) {
+    (self.slug(), self)
+  }
+
+  /// Calculates a URL slug from metadata.
   pub fn slug(&self) -> String {
-    todo!()
+    let title = self.title().to_lowercase().replace(" ", "-");
+    let year = self.year().map(|y| y.to_string()).unwrap_or_default();
+    format!("{}-{}", title, year)
   }
 
-  /// Calculates display title from metadata, falling back to path.
+  /// Gets the movie directory basename.
+  pub fn basename(&self) -> String {
+    self.path.file_name().unwrap().to_string_lossy().to_string()
+  }
+
+  /// Gets the display title of the movie.
+  ///
+  /// Falls back on extracting the title from the directory basename
+  /// if the title field is missing from the NFO metadata file.
   pub fn title(&self) -> String {
-    self
-      .metadata
-      .as_ref()
-      .map(|m| m.title.as_ref())
-      .flatten()
-      .map(|t| t.into())
-      .unwrap_or_else(|| self.path_title_year().0)
-  }
-
-  /// Calculates release year from metadata, falling back to path.
-  pub fn year(&self) -> Option<u32> {
-    self
-      .metadata
-      .as_ref()
-      .map(|m| m.year)
-      .flatten()
-      .or_else(|| self.path_title_year().1)
-  }
-
-  /// Captures display title and year from directory name.
-  fn path_title_year(&self) -> (String, Option<u32>) {
-    let regex = Regex::new(r"^(.+)\s+\(([1-9]\d{3})\)").unwrap();
-    let basename = self.path.file_name().unwrap().to_string_lossy();
-    match regex.captures(&basename) {
-      Some(c) => (
-        c.get(0).unwrap().as_str().to_string(),
-        c.get(1).unwrap().as_str().parse().ok(),
-      ),
-      None => (basename.to_string(), None),
+    let basename = self.basename();
+    match &self.nfo.title {
+      Some(t) => t,
+      None => Regex::new(r"^([^(]*)")
+        .unwrap()
+        .captures(&basename)
+        .unwrap()
+        .get(0)
+        .unwrap()
+        .as_str(),
     }
+    .trim()
+    .to_string()
+  }
+
+  /// Gets the release year of the movie.
+  ///
+  /// Falls back on extracting the year from the directory basename
+  /// if the year field is missing in the NFO metadata file.
+  pub fn year(&self) -> Option<u32> {
+    let basename = self.basename();
+    self.nfo.year.or_else(|| {
+      Regex::new(r"^[^(]*\(([1-9][0-9]{3})\)")
+        .unwrap()
+        .captures(&basename)
+        .map(|c| c.get(0))?
+        .map(|m| m.as_str().to_string().parse().ok())?
+    })
   }
 }
 
 impl fmt::Display for Movie {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let title = self.title();
-    match self.year() {
+    match &self.year() {
       Some(y) => write!(f, "{} ({})", title, y),
       None => write!(f, "{}", title),
     }
   }
 }
 
-/// Movie edition
-pub struct MovieEdition {
-  /// Basename of edition files
-  basename: String,
-
-  /// Edition-specific metadata
-  pub metadata: Option<MovieMetadata>,
-}
-
 /// Movie metadata
-#[derive(Debug)]
-pub struct MovieMetadata {
+#[derive(Deserialize, Default)]
+#[serde(rename = "movie")]
+pub struct MovieNfo {
   /// Movie title
   pub title: Option<String>,
 
   /// Original title
-  pub originaltitle: Option<String>,
+  #[serde(rename = "originaltitle")]
+  pub original_title: Option<String>,
 
   /// Release year
   pub year: Option<u32>,
 
   /// Plot summary of the movie
+  #[serde(rename = "plot")]
   pub summary: Option<String>,
 }
 
-impl MovieMetadata {
-  pub fn load(path: &Path, logger: &Logger) -> io::Result<MovieMetadata> {
-    todo!()
+impl MovieNfo {
+  /// Opens and deserializes a movie NFO metadata file from storage.
+  pub fn load(path: &Path) -> Result<MovieNfo, Box<dyn Error>> {
+    use quick_xml::de::from_reader;
+    use std::{fs::File, io::BufReader};
+
+    let path = path.join(&MOVIE_METADATA_FILE);
+    let file = File::open(&path)?;
+    let reader = BufReader::new(file);
+    let nfo = from_reader(reader)?;
+
+    Ok(nfo)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn format_movie() {
+    // With year
+    {
+      let title = "Old Yeller";
+      let year = 1957;
+      let path = PathBuf::from(format!("/path/to/library/Movies/{} {}", title, year));
+      let nfo = MovieNfo {
+        title: Some(title.into()),
+        year: Some(year),
+        ..Default::default()
+      };
+      let movie = Movie { path, nfo };
+      assert_eq!(format!("{} ({})", title, year), format!("{}", movie));
+    }
+
+    // Without year
+    {
+      let title = "Independence Day 3";
+      let path = PathBuf::from(format!("/path/to/library/Movies/{}", title));
+      let nfo = MovieNfo {
+        title: Some(title.into()),
+        ..Default::default()
+      };
+      let movie = Movie { path, nfo };
+      assert_eq!(format!("{}", title), format!("{}", movie));
+    }
   }
 }

@@ -1,16 +1,12 @@
+mod helpers;
 mod movie;
 
 use crate::logger::Logger;
+use helpers::dir_or_err;
 use movie::Movie;
 use std::{collections::HashMap, io, path::PathBuf};
 
-/// Errors if the given path is not a directory
-pub fn dir_or_err(path: impl Into<PathBuf>) -> io::Result<()> {
-  match path.into().is_dir() {
-    true => Ok(()),
-    false => Err(io::Error::from(io::ErrorKind::NotADirectory)),
-  }
-}
+const MOVIES_DIRECTORY: &str = "Movies";
 
 /// Media library
 pub struct Library {
@@ -38,11 +34,8 @@ impl Library {
     dir_or_err(&path)?;
 
     // Initialize the library
-    let movies = Movie::load_root(path.join("Movies"), logger);
-    let library = Library {
-      path,
-      movies: movies.unwrap_or_default(),
-    };
+    let movies = Movie::load_collection(path.join(&MOVIES_DIRECTORY), logger).unwrap_or_default();
+    let library = Library { path, movies };
 
     Ok(library)
   }

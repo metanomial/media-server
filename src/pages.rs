@@ -1,6 +1,6 @@
 use crate::library::Library;
 use maud::{html, Markup, DOCTYPE};
-use rocket::{Route, State};
+use rocket::{uri, Route, State};
 
 fn page_title(title: Option<&str>) -> Markup {
   html! {
@@ -19,10 +19,10 @@ fn menu() -> Markup {
     nav {
       menu {
         li {
-          a href="/" { "Home" }
+          a href=(uri!(home)) { "Home" }
         }
         li {
-          a href="/movies" { "Movies" }
+          a href=(uri!(movies)) { "Movies" }
         }
       }
     }
@@ -81,10 +81,15 @@ fn movies(library: &State<Library>) -> Markup {
   base(
     Some("Movies"),
     html! {
-      @for (_, movie) in &library.movies {
-        figure class="movie" {
-          figcaption {
-            (movie)
+      @for movie in library.movies.values() {
+        a class="movie" href="#" {
+          figure {
+            picture {
+              img src="#" alt={ (movie) " cover image" };
+            }
+            figcaption {
+              (movie)
+            }
           }
         }
       }

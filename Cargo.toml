@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 regex = "1.5.6"
 rocket = "0.5.0-rc.2"
+serde = "1.0"
 
 [dependencies.clap]
 version = "3.1.18"
@@ -16,3 +17,7 @@ features = ["derive"]
 git = "https://github.com/metanomial/maud"
 tag = "rocket-0.5-support"
 features = ["rocket"]
+
+[dependencies.quick-xml]
+version = "0.22"
+features = ["serialize"]
