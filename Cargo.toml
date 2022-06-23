@@ -5,9 +5,11 @@ authors = ["Benjamin Herman <benjamin@metanomial.com>"]
 edition = "2021"
 
 [dependencies]
+log = "0.4"
 regex = "1.5.6"
 rocket = "0.5.0-rc.2"
 serde = "1.0"
+simplelog = "0.12"
 
 [dependencies.clap]
 version = "3.1.18"

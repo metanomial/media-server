@@ -1,4 +1,5 @@
-use crate::{library::dir_or_err, logger::Logger};
+use crate::library::helpers::dir_or_err;
+use log::info;
 use regex::Regex;
 use serde::Deserialize;
 use std::{
@@ -23,27 +24,24 @@ pub struct Movie {
 
 impl Movie {
   /// Loads a collection of movies in the given root directory.
-  pub fn load_collection(path: PathBuf, logger: &Logger) -> io::Result<MovieCollection> {
-    logger.verbose(format!(
-      "Loading Movies collection at {}",
-      path.to_string_lossy()
-    ));
+  pub fn load_collection(path: PathBuf) -> io::Result<MovieCollection> {
+    info!("Loading Movies collection at {}", path.to_string_lossy());
     let collection: MovieCollection = path
       .read_dir()?
       .filter_map(Result::ok)
-      .filter_map(|entry| Movie::load(entry.path(), logger).ok())
+      .filter_map(|entry| Movie::load(entry.path()).ok())
       .map(Movie::key_value_pair)
       .collect();
-    logger.verbose(format!("Loaded {} movies", collection.len()));
+    info!("Loaded {} movies", collection.len());
     Ok(collection)
   }
 
   /// Loads a movie from the given path.
-  fn load(path: PathBuf, logger: &Logger) -> io::Result<Movie> {
+  fn load(path: PathBuf) -> io::Result<Movie> {
     dir_or_err(&path)?;
     let nfo = MovieNfo::load(path.as_path()).unwrap_or_default();
     let movie = Movie { path, nfo };
-    logger.verbose(format!("Loaded movie {}", &movie));
+    info!("Loaded movie {}", &movie);
     Ok(movie)
   }
 
