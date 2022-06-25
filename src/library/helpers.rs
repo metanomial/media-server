@@ -1,21 +1,14 @@
-use std::{io, path::PathBuf};
+use anyhow::{bail, Result};
+use std::path::Path;
 
-/// Errors if the given path is not a directory
-pub fn dir_or_err(path: impl Into<PathBuf>) -> io::Result<()> {
-  if !path.into().is_dir() {
-    return Err(io::Error::from(io::ErrorKind::NotADirectory));
+/// Errors if the given load path is not a directory.
+pub fn load_dir_or_err(entity: &str, path: &Path) -> Result<()> {
+  if !path.is_dir() {
+    bail!(
+      r#"Cannot load {}: path "{}" is not a directory"#,
+      entity,
+      path.to_string_lossy()
+    )
   }
   Ok(())
-}
-
-#[cfg(tests)]
-mod tests {
-  #[test]
-  fn dir_or_does_err() {
-    asserteq!(dir_or_err(PathBuf::new("..")), ());
-    asserteq!(dir_or_err(
-      PathBuf::new("mod.rs"),
-      Err(io::Error::from(io::ErrorKind::NotADirectory))
-    ));
-  }
 }

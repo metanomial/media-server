@@ -1,10 +1,11 @@
 mod helpers;
 mod movie;
 
-use helpers::dir_or_err;
+use crate::library::helpers::load_dir_or_err;
+use anyhow::Result;
 use log::info;
-use movie::Movie;
-use std::{collections::HashMap, io, path::PathBuf};
+use movie::{Movie, MovieCollection};
+use std::path::PathBuf;
 
 const MOVIES_DIRECTORY: &str = "Movies";
 
@@ -14,7 +15,7 @@ pub struct Library {
   pub path: PathBuf,
 
   /// Movie collection
-  pub movies: HashMap<String, Movie>,
+  pub movies: MovieCollection,
 }
 
 impl Library {
@@ -24,18 +25,19 @@ impl Library {
   /// the library will be loaded from the current directory.
   ///
   /// If specified, `path` must be a directory.
-  pub fn load(path: Option<PathBuf>) -> io::Result<Library> {
+  pub fn load(path: Option<PathBuf>) -> Result<Library> {
     // Resolve path
     let path = match path {
       Some(p) => p.canonicalize(),
       None => std::env::current_dir(),
     }?;
+    load_dir_or_err("library", &path)?;
     info!("Loading library from {}", path.to_string_lossy());
-    dir_or_err(&path)?;
 
     // Initialize the library
-    let movies = Movie::load_collection(path.join(&MOVIES_DIRECTORY)).unwrap_or_default();
+    let movies = Movie::load_collection(path.join(MOVIES_DIRECTORY)).unwrap_or_default();
     let library = Library { path, movies };
+    info!("Loaded library");
 
     Ok(library)
   }

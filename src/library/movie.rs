@@ -1,12 +1,7 @@
-use crate::library::helpers::dir_or_err;
-use log::info;
+use crate::library::helpers::load_dir_or_err;
+use anyhow::Result;
 use regex::Regex;
-use serde::Deserialize;
-use std::{
-  error::Error,
-  fmt, io,
-  path::{Path, PathBuf},
-};
+use std::{fmt, path::PathBuf};
 
 const MOVIE_METADATA_FILE: &str = "movie.nfo";
 
@@ -24,12 +19,19 @@ pub struct Movie {
 
 impl Movie {
   /// Loads a collection of movies in the given root directory.
-  pub fn load_collection(path: PathBuf) -> io::Result<MovieCollection> {
-    info!("Loading Movies collection at {}", path.to_string_lossy());
+  pub fn load_collection(path: PathBuf) -> Result<MovieCollection> {
+    use log::info;
+    load_dir_or_err("movies collection", &path)?;
+    info!("Loading movies collection at {}", path.to_string_lossy());
     let collection: MovieCollection = path
       .read_dir()?
       .filter_map(Result::ok)
-      .filter_map(|entry| Movie::load(entry.path()).ok())
+      .filter_map(|entry| {
+        let path = entry.path();
+        info!("Loading movie at {}", path.to_string_lossy());
+        Movie::load(path).ok()
+      })
+      .inspect(|movie| info!("Loaded {}", movie))
       .map(Movie::key_value_pair)
       .collect();
     info!("Loaded {} movies", collection.len());
@@ -37,12 +39,10 @@ impl Movie {
   }
 
   /// Loads a movie from the given path.
-  fn load(path: PathBuf) -> io::Result<Movie> {
-    dir_or_err(&path)?;
-    let nfo = MovieNfo::load(path.as_path()).unwrap_or_default();
-    let movie = Movie { path, nfo };
-    info!("Loaded movie {}", &movie);
-    Ok(movie)
+  fn load(path: PathBuf) -> Result<Movie> {
+    load_dir_or_err("movie", &path)?;
+    let nfo = MovieNfo::load(path.join(MOVIE_METADATA_FILE)).unwrap_or_default();
+    Ok(Movie { path, nfo })
   }
 
   /// Creates a key-value pair for collecting into a `MovieCollection`.
@@ -109,7 +109,7 @@ impl fmt::Display for Movie {
 }
 
 /// Movie metadata
-#[derive(Deserialize, Default)]
+#[derive(serde::Deserialize, Default)]
 #[serde(rename = "movie")]
 pub struct MovieNfo {
   /// Movie title
@@ -128,50 +128,10 @@ pub struct MovieNfo {
 }
 
 impl MovieNfo {
-  /// Opens and deserializes a movie NFO metadata file from storage.
-  pub fn load(path: &Path) -> Result<MovieNfo, Box<dyn Error>> {
-    use quick_xml::de::from_reader;
-    use std::{fs::File, io::BufReader};
-
-    let path = path.join(&MOVIE_METADATA_FILE);
-    let file = File::open(&path)?;
-    let reader = BufReader::new(file);
-    let nfo = from_reader(reader)?;
-
-    Ok(nfo)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn format_movie() {
-    // With year
-    {
-      let title = "Old Yeller";
-      let year = 1957;
-      let path = PathBuf::from(format!("/path/to/library/Movies/{} {}", title, year));
-      let nfo = MovieNfo {
-        title: Some(title.into()),
-        year: Some(year),
-        ..Default::default()
-      };
-      let movie = Movie { path, nfo };
-      assert_eq!(format!("{} ({})", title, year), format!("{}", movie));
-    }
-
-    // Without year
-    {
-      let title = "Independence Day 3";
-      let path = PathBuf::from(format!("/path/to/library/Movies/{}", title));
-      let nfo = MovieNfo {
-        title: Some(title.into()),
-        ..Default::default()
-      };
-      let movie = Movie { path, nfo };
-      assert_eq!(format!("{}", title), format!("{}", movie));
-    }
+  /// Loads a movie NFO metadata file from the given path.
+  pub fn load(path: PathBuf) -> Result<MovieNfo> {
+    let file = std::fs::File::open(path)?;
+    let reader = std::io::BufReader::new(file);
+    Ok(quick_xml::de::from_reader(reader)?)
   }
 }

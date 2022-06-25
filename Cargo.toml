@@ -5,6 +5,7 @@ authors = ["Benjamin Herman <benjamin@metanomial.com>"]
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0"
 log = "0.4"
 regex = "1.5.6"
 rocket = "0.5.0-rc.2"

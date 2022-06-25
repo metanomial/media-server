@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 #![feature(io_error_more)]
+#![feature(result_option_inspect)]
 
 use clap::Parser;
 use std::path::PathBuf;
